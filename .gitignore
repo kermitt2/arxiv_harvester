@@ -18,3 +18,5 @@ dist/
 downloads/
 wheels/
 *.egg-info/
+data
+!data/test
