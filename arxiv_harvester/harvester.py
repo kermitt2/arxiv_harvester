@@ -163,7 +163,7 @@ class ArXivHarvester(object):
             pdf_location = gcs_base + collection + '/pdf/' + prefix + "/" + full_number + version + ".pdf"   
             destination_pdf = os.path.join(self.config["data_path"], full_number + ".pdf")        
             # note: destination file nanme can change if compression is true in config
-            print(pdf_location)
+            #print(pdf_location)
             destination_pdf = self.download_file(pdf_location, destination_pdf, compression=self.config["compression"])
             if destination_pdf is not None:
                 latest_version = version
