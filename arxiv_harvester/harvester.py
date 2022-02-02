@@ -31,7 +31,7 @@ logging.getLogger("keystoneclient").setLevel(logging.ERROR)
 logging.getLogger("swiftclient").setLevel(logging.ERROR)
 
 # public access base for google cloud storage
-gcs_base = "http://storage.googleapis.com/arxiv-dataset/arxiv/"
+gcs_base = "https://storage.googleapis.com/arxiv-dataset/arxiv/"
 
 import pickle
 import lmdb
@@ -109,18 +109,23 @@ class ArXivHarvester(object):
                 continue
 
             arxiv_id = entry['id']
-            latest_version = _get_latest_version(entry)
+            versions = _get_versions(entry)
             # google cloud public access: gs://arxiv-dataset/arxiv/arxiv/pdf/0906/0906.5594v2.pdf
             # public web access, preferred: http://storage.googleapis.com/arxiv-dataset/arxiv/
 
-            # check if document and version are already processed
-            with self.env.begin() as txn:
-                local_object = txn.get(arxiv_id.encode(encoding='UTF-8'))
-                if local_object != None:
-                    local_entry = _deserialize_pickle(local_object)
-                    if local_entry != None:
-                        if "version" in local_entry and local_entry["version"] == latest_version:
-                            continue
+            for version in versions:
+                # check if document and version are already processed
+                found = False
+                with self.env.begin() as txn:
+                    local_object = txn.get(arxiv_id.encode(encoding='UTF-8'))
+                    if local_object != None:
+                        local_entry = _deserialize_pickle(local_object)
+                        if local_entry != None:
+                            if "version" in local_entry and local_entry["version"] == version:
+                                found = True
+                                break
+            if found:
+                continue
 
             entries.append(entry)
             i += 1
@@ -139,7 +144,8 @@ class ArXivHarvester(object):
 
     def process_entry(self, entry):
         arxiv_id = entry['id']
-        latest_version = _get_latest_version(entry)
+        versions =  _get_versions(entry)
+    
         # google cloud public access: gs://arxiv-dataset/arxiv/arxiv/pdf/0906/0906.5594v2.pdf
         # public web access, preferred: http://storage.googleapis.com/arxiv-dataset/arxiv/
 
@@ -148,24 +154,34 @@ class ArXivHarvester(object):
             full_number = prefix+"."+number
         else:
             full_number = prefix+number
-        pdf_location = gcs_base + collection + '/pdf/' + prefix + "/" + full_number + latest_version + ".pdf"
 
         # temporary place to download the file
         destination_pdf = os.path.join(self.config["data_path"], full_number + ".pdf")
-        # destination file nanme can change if compression is true in config
-        #print(pdf_location)
-        destination_pdf = self.download_file(pdf_location, destination_pdf, compression=self.config["compression"])
 
-        if destination_pdf is None:
-            # if not found, look for a ps file
-            ps_location = gcs_base + collection + '/ps/' + prefix + "/" + full_number + latest_version + ".ps.gz"
+        latest_version = None
+        for version in versions:
+            pdf_location = gcs_base + collection + '/pdf/' + prefix + "/" + full_number + version + ".pdf"   
+            destination_pdf = os.path.join(self.config["data_path"], full_number + ".pdf")        
+            # note: destination file nanme can change if compression is true in config
+            print(pdf_location)
+            destination_pdf = self.download_file(pdf_location, destination_pdf, compression=self.config["compression"])
+            if destination_pdf is not None:
+                latest_version = version
+                break
+
+        if destination_pdf is None:    
+            # if PDF not found, look for a ps file
+            version = versions[0]
+            ps_location = gcs_base + collection + '/ps/' + prefix + "/" + full_number + version + ".ps.gz"
             destination_ps = os.path.join(self.config["data_path"], full_number + ".ps.gz")
             destination_ps = self.download_file(ps_location, destination_ps, compression=False)
 
             if destination_ps is None:
                 # if still not found, they are 44 articles in html only 
                 print("Full text article not found for", arxiv_id, "it might be available in html only")
+                destination_pdf = None
             else:
+                latest_version = version
                 # for convenience, convert .ps.gz into PDF
                 destination_pdf = os.path.join(self.config["data_path"], arxiv_id + ".pdf")
                 # first gunzip the ps file
@@ -191,7 +207,7 @@ class ArXivHarvester(object):
 
         if destination_pdf is not None:
             # store the pdf file in the selected storage
-            self.store_file(destination_pdf, arxiv_id, latest_version)
+            self.store_file(destination_pdf, arxiv_id)
 
             # update advancement status map
             profile = {}
@@ -214,7 +230,7 @@ class ArXivHarvester(object):
                     destination_json += compression_suffix
             except:
                 logging.error("Error compressing resource files for " + destination_json)   
-        self.store_file(destination_json, arxiv_id, latest_version)
+        self.store_file(destination_json, arxiv_id)
 
         return "success"
 
@@ -244,7 +260,7 @@ class ArXivHarvester(object):
 
         return destination
 
-    def store_file(self, source, identifier, version, clean=True):
+    def store_file(self, source, identifier, clean=True):
         file_name = os.path.basename(source)
         collection, prefix, number = _generate_storage_components(identifier)
 
@@ -358,17 +374,20 @@ def _get_json_file_reader(filename, mode):
         file_in = open(filename, mode)
     return file_in
 
-def _get_latest_version(json_entry):
-    latest_version = None
+def _get_versions(json_entry):
+    """
+    Return version labels ranked from the most recent to the earliest one
+    """
+    versions = []
     if "versions" in json_entry:
         for version in json_entry["versions"]:
             # time indicated by "created" attribute
-            latest_version = version["version"]
+            versions.insert(0, version["version"])
 
-    if latest_version == None:
+    if len(versions) == 0:
         # default value
-        latest_version = "v1" 
-    return latest_version
+        versions.append("v1")
+    return versions
 
 def _generate_storage_components(identifier):
     '''
