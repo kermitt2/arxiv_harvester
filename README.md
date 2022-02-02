@@ -1,6 +1,6 @@
 # Poor man simple harvester for arXiv resources
 
-This modest Python script takes advantage of arXiv resources hosted by Kaggle to harvest arXiv metadata and PDF, without using the AWS requester paid buckets. 
+This modest Python script takes advantage of [arXiv resources hosted by Kaggle](https://www.kaggle.com/Cornell-University/arxiv) to harvest arXiv metadata and PDF, without using the AWS requester paid buckets. 
 
 The harvester performs the following tasks:
 
@@ -79,7 +79,26 @@ If the arXiv metadata file has been updated to a newer version, launching the ha
 
 ## Resource file organization 
 
+The organization of harvested files permits a direct access based on the arxiv identifier. More particularly, the Open Access link given for an arXiv resource by [Unpaywall](https://unpaywall.org/) is enough to create a direct access path. It also avoids storing too many files in the same directory for performance reasons. 
 
+The stored PDF is always the most recent version. There is no need to know what is the exact latest version (an information that we don't have with the Unpaywall arXiv full text links for example). The local metadata file for the article gives the version number of the stored PDF. 
+
+For example, to get access path from the identifiers or Unpaywall OA url:
+
+- post-2007 arXiv identifiers (pattern `arXiv:YYMM.numbervV` or commonly `YYMM.numbervV`): 
+
+    * `1501.00001v1` -> `$root/arXiv/1501/1501.00001/1501.00001.pdf` (most recent version of the PDF), `$root/arXiv/1501/1501.00001/1501.00001.json` (arXiv metadata for the article)
+    * Unpaywall link `http://arxiv.org/pdf/1501.00001` -> `$root/arXiv/1501/1501.00001/1501.00001.pdf`, `$root/arXiv/1501/1501.00001/1501.00001.json`
+
+- pre-2007 arXiv identifiers (pattern `archive.subject_call/YYMMnumber`):
+
+    * `quant-ph/0602109` -> `$root/quant-ph/0602/0602109/0602109.pdf` (most recent version of the PDF), `$root/quant-ph/0602/0602109/0602109.json` (arXiv metadata for the article)
+
+    * Unpaywall link `https://arxiv.org/pdf/quant-ph/0602109` -> `$root/quant-ph/0602/0602109/0602109.pdf`, `$root/quant-ph/0602/0602109/0602109.json`
+
+If the `compression` option is set to `True` in the configuration file `config.json`, all the resources have an additional `.gz` extension.
+
+`$root` in the above examples should be adapted to the storage of choice, as configured in the configuration file `config.json`. For instance with AWS S3: `https://bucket_name.s3.amazonaws.com/arXiv/1501/1501.00001/1501.00001.pdf` (if access rights are appropriate). The same applies to a SWIFT object storage based on the container name indicated in the config file. 
 
 ## Limitations
 
