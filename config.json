@@ -1,0 +1,11 @@
+{
+    "data_path": "./data",
+    "compression": true,
+    "batch_size": 5,
+    "aws_access_key_id": "",
+    "aws_secret_access_key": "",
+    "bucket_name": "",
+    "region": "",
+    "swift": {},
+    "swift_container": ""
+}
