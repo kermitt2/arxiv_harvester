@@ -114,9 +114,9 @@ class ArXivHarvester(object):
             # google cloud public access: gs://arxiv-dataset/arxiv/arxiv/pdf/0906/0906.5594v2.pdf
             # public web access, preferred: http://storage.googleapis.com/arxiv-dataset/arxiv/
 
+            found = False
             for version in versions:
                 # check if document and version are already processed
-                found = False
                 with self.env.begin() as txn:
                     local_object = txn.get(arxiv_id.encode(encoding='UTF-8'))
                     if local_object != None:
@@ -235,11 +235,14 @@ class ArXivHarvester(object):
 
         return "success"
 
-    def download_file(self, source_url, destination, compression=False):
-        HEADERS = {"""User-Agent""": _get_random_user_agent()}
+    def download_file(self, source_url, destination, compression=False, rolling_user_agent=True):
         result = "fail"
         try:
-            file_data = requests.get(source_url, allow_redirects=True, headers=HEADERS, verify=False, timeout=30)
+            if rolling_user_agent:
+                HEADERS = {"""User-Agent""": _get_random_user_agent()}
+                file_data = requests.get(source_url, allow_redirects=True, headers=HEADERS, verify=False, timeout=30)
+            else:
+                file_data = requests.get(source_url, allow_redirects=True, verify=False, timeout=30)
             if file_data.status_code == 200:
                 with open(destination, 'wb') as f_out:
                     f_out.write(file_data.content)
@@ -455,7 +458,7 @@ def _get_random_user_agent():
     Note: rotating the user agent without rotating the IP address (via proxies) might not be a good idea if the same server
     is harvested - but in our case we are harvesting a large variety of different Open Access servers
     '''
-    user_agents = ["Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:81.0) Gecko/20100101 Firefox/81.0",
+    user_agents = ["Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:95.0) Gecko/20100101 Firefox/95.0",
                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.81 Safari/537.36",
                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36"]
     weights = [0.2, 0.3, 0.5]
