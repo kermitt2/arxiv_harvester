@@ -6,9 +6,11 @@ The harvester performs the following tasks:
 
 * parse the full JSON arXiv metadata file available at Kaggle
 
-* download the PDF located at the public access bucket `gs://arxiv-dataset` stored them on a cloud storage, AWS S3 and Swift OpenStack supported, or on the local file system
+* parallel download PDF located at the public access bucket `gs://arxiv-dataset` and store them (also in parallel) on a cloud storage, AWS S3 and Swift OpenStack supported, or on the local file system
 
-* metadata of the uploaded article are stored with the PDF in json format
+* store the metadata of the uploaded article along with the PDF in JSON format
+
+To save storage space, only the most recent available version of the PDF for an article is harvested, not every available versions. 
 
 Resuming interrupted and incremental update are automatically supported. 
 
@@ -16,9 +18,9 @@ In case an articles is only available only in postcript, it will be converted in
 
 ## Install 
 
-The tool is supposed to work on a POSIX environment. External call to the following command lines are made: `gzip` and `ps2pdf`.
+The tool is supposed to work on a POSIX environment. External call to the following command lines are used: `gzip`, `gunzip` and `ps2pdf`.
 
-First, download the full arXiv metadata JSON file available at [https://www.kaggle.com/Cornell-University/arxiv](https://www.kaggle.com/Cornell-University/arxiv) (1TB compressed). It's actually a JSONL file (one JSON document per line), currently named `arxiv-metadata-oai-snapshot.json.zip`.
+First, download the full arXiv metadata JSON file available at [https://www.kaggle.com/Cornell-University/arxiv](https://www.kaggle.com/Cornell-University/arxiv) (1TB compressed). It's actually a JSONL file (one JSON document per line), currently named `arxiv-metadata-oai-snapshot.json.zip`. You can also generate yourself this file with [arxiv-public-dataset OAI harvester](https://github.com/mattbierbaum/arxiv-public-datasets#article-metadata) using the arXiv OAI-PMH service.
 
 Get this github repo:
 
@@ -47,6 +49,12 @@ pip3 install -e .
 ```
 
 ## Usage 
+
+First check the configuration file:
+
+* set the parameters according to your selected storage (AWS S3, SWIFT OepnStack or local storage), see [below](https://github.com/kermitt2/arxiv_harvester#aws-s3-and-swift-configuration) for more details, 
+* the default `batch_size` for parallel download/upload is `10`, change it as you wish, 
+* by default gzip `compression` of files on the target storage is selected. 
 
 ```
 arXiv harvester
@@ -102,7 +110,9 @@ If the `compression` option is set to `True` in the configuration file `config.j
 
 ## AWS S3 and SWIFT configuration
 
-In the configuration file `config.json`, the configuration for a S3 storage uses the following parameters:
+For a local storage, just indicate the path where to store the PDF with the parameter `data_path` in the configuration file `config.json`.
+
+The configuration for a S3 storage uses the following parameters:
 
 ```json
 {
