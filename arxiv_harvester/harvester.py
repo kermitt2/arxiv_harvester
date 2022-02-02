@@ -90,6 +90,7 @@ class ArXivHarvester(object):
             if not buffer: break
             count += buffer.count(b'\n')
         print("total entries found: " + str(count) + "\n")
+        logging.info("total entries found: " + str(count))
         file_in.close()
 
         # iterate through the jsonl file
@@ -105,7 +106,7 @@ class ArXivHarvester(object):
 
             entry = json.loads(line)
             if 'id' not in entry:
-                print("entry without arxiv id, skipping...")
+                logging.info("entry without arxiv id, skipping...")
                 continue
 
             arxiv_id = entry['id']
@@ -178,7 +179,7 @@ class ArXivHarvester(object):
 
             if destination_ps is None:
                 # if still not found, they are 44 articles in html only 
-                print("Full text article not found for", arxiv_id, "it might be available in html only")
+                logging.info("Full text article not found for " + arxiv_id + " - it might be available in html only")
                 destination_pdf = None
             else:
                 latest_version = version
