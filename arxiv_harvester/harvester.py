@@ -69,6 +69,11 @@ class ArXivHarvester(object):
         self.env = lmdb.open(envFilePath, map_size=map_size)
 
     def harvest(self, metadata_file):
+        if 'batch_size' in self.config:
+            batch_size_pdf = self.config['batch_size']
+        else:
+            batch_size_pdf = 10
+
         if metadata_file is None or not os.path.isfile(metadata_file):
             raise("the provided metadata file is not valid")
 
@@ -89,11 +94,20 @@ class ArXivHarvester(object):
 
         # iterate through the jsonl file
         file_in = _get_json_file_reader(metadata_file, 'r')
+        i = 0
+        entries = []
         for line in tqdm(file_in, total=count):
+
+            if i == batch_size_pdf:
+                result = self.processBatch(entries)
+                entries = []
+                i = 0
+
             entry = json.loads(line)
             if 'id' not in entry:
                 print("entry without arxiv id, skipping...")
                 continue
+
             arxiv_id = entry['id']
             latest_version = _get_latest_version(entry)
             # google cloud public access: gs://arxiv-dataset/arxiv/arxiv/pdf/0906/0906.5594v2.pdf
@@ -108,82 +122,100 @@ class ArXivHarvester(object):
                         if "version" in local_entry and local_entry["version"] == latest_version:
                             continue
 
-            collection, prefix, number = generate_storage_components(arxiv_id)
-            if collection == 'arxiv':
-                full_number = prefix+"."+number
-            else:
-                full_number = prefix+number
-            pdf_location = gcs_base + collection + '/pdf/' + prefix + "/" + full_number + latest_version + ".pdf"
+            entries.append(entry)
 
-            # temporary place to download the file
-            destination_pdf = os.path.join(self.config["data_path"], full_number + ".pdf")
-            # destination file nanme can change if compression is true in config
-            print(pdf_location)
-            destination_pdf = self.download_file(pdf_location, destination_pdf, compression=self.config["compression"])
-
-            if destination_pdf is None:
-                # if not found, look for a ps file
-                ps_location = gcs_base + collection + '/ps/' + prefix + "/" + full_number + latest_version + ".ps.gz"
-                destination_ps = os.path.join(self.config["data_path"], full_number + ".ps.gz")
-                destination_ps = self.download_file(ps_location, destination_ps, compression=False)
-
-                if destination_ps is None:
-                    # if still not found, they are 44 articles in html only 
-                    print("Full text article not found for", arxiv_id, "it might be available in html only")
-                else:
-                    # for convenience, convert .ps.gz into PDF
-                    destination_pdf = os.path.join(self.config["data_path"], arxiv_id + ".pdf")
-                    # first gunzip the ps file
-                    subprocess.check_call(['gunzip', '-f', destination_ps])
-                    destination_ps = destination_ps.replace(".ps.gz", ".ps")
-                    subprocess.check_call(['ps2pdf', destination_ps, destination_pdf])
-                    # clean ps file
-                    try:
-                        if os.path.isfile(destination_ps):
-                            os.remove(destination_ps)
-                    except IOError:
-                        logging.exception("temporary ps file cleaning failed")  
-
-                    if destination_pdf is not None:
-                        if self.config["compression"]:
-                            compression_suffix = ".gz"
-                            try:
-                                if os.path.isfile(destination_pdf):
-                                    subprocess.check_call(['gzip', '-f', destination_pdf])
-                                    destination_pdf += compression_suffix
-                            except:
-                                logging.error("Error compressing resource files for " + destination_pdf)   
-
-            if destination_pdf is not None:
-                # store the pdf file in the selected storage
-                self.store_file(destination_pdf, arxiv_id, latest_version)
-
-                # update advancement status map
-                profile = {}
-                profile['id'] = arxiv_id
-                profile['version'] = latest_version
-                if 'doi' in entry and entry['doi'] != None:
-                    profile['doi'] = entry['doi']
-                with self.env.begin(write=True) as txn:
-                    txn.put(arxiv_id.encode(encoding='UTF-8'), _serialize_pickle(profile))
-
-            # store the metadata file
-            destination_json = os.path.join(self.config["data_path"], arxiv_id+".json")
-            with open(destination_json, 'w', encoding='utf-8') as outfile:
-                json.dump(entry, outfile, ensure_ascii=False)
-            if self.config["compression"]:
-                compression_suffix = ".gz"
-                try:
-                    if os.path.isfile(destination_json):
-                        subprocess.check_call(['gzip', '-f', destination_json])
-                        destination_json += compression_suffix
-                except:
-                    logging.error("Error compressing resource files for " + destination_json)   
-            self.store_file(destination_json, arxiv_id, latest_version)
+        # we need to process the latest incomplete batch (if not empty)
+        if len(entries) >0:
+            result = self.processBatch(entries)
 
         dump_destination = os.path.join(self.config["data_path"], "arxiv_list.json")
         self.dump_map(dump_destination)
 
+    def processBatch(self, entries):
+        with ThreadPoolExecutor(max_workers=12) as executor:
+            results = executor.map(self.process_entry, entries, timeout=60)
+        return "success"
+
+    def process_entry(self, entry):
+        arxiv_id = entry['id']
+        latest_version = _get_latest_version(entry)
+        # google cloud public access: gs://arxiv-dataset/arxiv/arxiv/pdf/0906/0906.5594v2.pdf
+        # public web access, preferred: http://storage.googleapis.com/arxiv-dataset/arxiv/
+
+        collection, prefix, number = _generate_storage_components(arxiv_id)
+        if collection == 'arxiv':
+            full_number = prefix+"."+number
+        else:
+            full_number = prefix+number
+        pdf_location = gcs_base + collection + '/pdf/' + prefix + "/" + full_number + latest_version + ".pdf"
+
+        # temporary place to download the file
+        destination_pdf = os.path.join(self.config["data_path"], full_number + ".pdf")
+        # destination file nanme can change if compression is true in config
+        #print(pdf_location)
+        destination_pdf = self.download_file(pdf_location, destination_pdf, compression=self.config["compression"])
+
+        if destination_pdf is None:
+            # if not found, look for a ps file
+            ps_location = gcs_base + collection + '/ps/' + prefix + "/" + full_number + latest_version + ".ps.gz"
+            destination_ps = os.path.join(self.config["data_path"], full_number + ".ps.gz")
+            destination_ps = self.download_file(ps_location, destination_ps, compression=False)
+
+            if destination_ps is None:
+                # if still not found, they are 44 articles in html only 
+                print("Full text article not found for", arxiv_id, "it might be available in html only")
+            else:
+                # for convenience, convert .ps.gz into PDF
+                destination_pdf = os.path.join(self.config["data_path"], arxiv_id + ".pdf")
+                # first gunzip the ps file
+                subprocess.check_call(['gunzip', '-f', destination_ps])
+                destination_ps = destination_ps.replace(".ps.gz", ".ps")
+                subprocess.check_call(['ps2pdf', destination_ps, destination_pdf])
+                # clean ps file
+                try:
+                    if os.path.isfile(destination_ps):
+                        os.remove(destination_ps)
+                except IOError:
+                    logging.exception("temporary ps file cleaning failed")  
+
+                if destination_pdf is not None:
+                    if self.config["compression"]:
+                        compression_suffix = ".gz"
+                        try:
+                            if os.path.isfile(destination_pdf):
+                                subprocess.check_call(['gzip', '-f', destination_pdf])
+                                destination_pdf += compression_suffix
+                        except:
+                            logging.error("Error compressing resource files for " + destination_pdf)   
+
+        if destination_pdf is not None:
+            # store the pdf file in the selected storage
+            self.store_file(destination_pdf, arxiv_id, latest_version)
+
+            # update advancement status map
+            profile = {}
+            profile['id'] = arxiv_id
+            profile['version'] = latest_version
+            if 'doi' in entry and entry['doi'] != None:
+                profile['doi'] = entry['doi']
+            with self.env.begin(write=True) as txn:
+                txn.put(arxiv_id.encode(encoding='UTF-8'), _serialize_pickle(profile))
+
+        # store the metadata file
+        destination_json = os.path.join(self.config["data_path"], arxiv_id+".json")
+        with open(destination_json, 'w', encoding='utf-8') as outfile:
+            json.dump(entry, outfile, ensure_ascii=False)
+        if self.config["compression"]:
+            compression_suffix = ".gz"
+            try:
+                if os.path.isfile(destination_json):
+                    subprocess.check_call(['gzip', '-f', destination_json])
+                    destination_json += compression_suffix
+            except:
+                logging.error("Error compressing resource files for " + destination_json)   
+        self.store_file(destination_json, arxiv_id, latest_version)
+
+        return "success"
 
     def download_file(self, source_url, destination, compression=False):
         HEADERS = {"""User-Agent""": _get_random_user_agent()}
@@ -213,7 +245,7 @@ class ArXivHarvester(object):
 
     def store_file(self, source, identifier, version, clean=True):
         file_name = os.path.basename(source)
-        collection, prefix, number = generate_storage_components(identifier)
+        collection, prefix, number = _generate_storage_components(identifier)
 
         if collection == 'arxiv':
             full_number = prefix+"."+number
@@ -293,7 +325,7 @@ class ArXivHarvester(object):
     def diagnostic(self):
         with self.env.begin(write=True) as txn:
             nb_total = txn.stat()['entries']
-            print("\nnumber of successfully harvested entries:", nb_total)
+            print("\nnumber of successfully harvested entries:", nb_total)            
 
     def reset(self):
         """
@@ -337,7 +369,7 @@ def _get_latest_version(json_entry):
         latest_version = "v1" 
     return latest_version
 
-def generate_storage_components(identifier):
+def _generate_storage_components(identifier):
     '''
     Convert an arxiv identifier into components for storage path purposes 
     
@@ -415,12 +447,14 @@ if __name__ == "__main__":
     parser.add_argument("--config", default="./config.json", help="path to the config file, default is ./config.json") 
     parser.add_argument("--reset", action="store_true", help="ignore previous processing states, clear the existing storage and re-init the harvesting process from the beginning") 
     parser.add_argument("--metadata", help="arXiv metadata json file") 
+    parser.add_argument("--diagnostic", action="store_true", help="produce a summary of the harvesting") 
 
     args = parser.parse_args()
 
     metadata = args.metadata
     config_path = args.config
     reset = args.reset
+    diagnotic = args.diagnostic
 
     config = _load_config(config_path)
 
@@ -433,6 +467,9 @@ if __name__ == "__main__":
 
     if metadata is not None: 
         harvester.harvest(metadata)
+        harvester.diagnostic()
+
+    if diagnotic:
         harvester.diagnostic()
 
     runtime = round(time.time() - start_time, 3)

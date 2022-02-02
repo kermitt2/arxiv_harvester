@@ -1,6 +1,7 @@
 {
     "data_path": "./data",
     "compression": true,
+    "batch_size": 10,
     "aws_access_key_id": "",
     "aws_secret_access_key": "",
     "bucket_name": "",
