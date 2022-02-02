@@ -11,7 +11,6 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from random import randint, choices
 from tqdm import tqdm
-import weasyprint
 from zipfile import ZipFile
 
 # support for S3
