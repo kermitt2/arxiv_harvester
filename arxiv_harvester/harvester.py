@@ -123,6 +123,7 @@ class ArXivHarvester(object):
                             continue
 
             entries.append(entry)
+            i += 1
 
         # we need to process the latest incomplete batch (if not empty)
         if len(entries) >0:
