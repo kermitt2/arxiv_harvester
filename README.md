@@ -10,24 +10,24 @@ The harvester performs the following tasks:
 
 * metadata of the uploaded article are stored with the PDF in json format
 
-Articles available only in postcript will be converted into PDF too. 
-
 Resuming interrupted and incremental update are automatically supported. 
+
+In case an articles is only available only in postcript, it will be converted into PDF too - but it should not happen afaik. 
 
 ## Install 
 
-The tool is supposed to work on a POSIX environment. External call to the following command lines are made: `gzip`, `ps2pdf` and 
+The tool is supposed to work on a POSIX environment. External call to the following command lines are made: `gzip` and `ps2pdf`.
 
-Download the full arXiv metadata JSON file available at [https://www.kaggle.com/Cornell-University/arxiv](https://www.kaggle.com/Cornell-University/arxiv). It's actually a JSONL file (one JSON document per line).
+First, download the full arXiv metadata JSON file available at [https://www.kaggle.com/Cornell-University/arxiv](https://www.kaggle.com/Cornell-University/arxiv) (1TB compressed). It's actually a JSONL file (one JSON document per line), currently named `arxiv-metadata-oai-snapshot.json.zip`.
 
 Get this github repo:
 
 ```sh
 git clone https://github.com/kermitt2/arxiv_harvester
-cd softcite_kb
+cd arxiv_harvester
 ```
 
-Setup first a virtual environment
+Setup a virtual environment:
 
 ```sh
 virtualenv --system-site-packages -p python3.8 env
@@ -65,21 +65,21 @@ For example, to harvest articles from a metadata snapshot file:
 python3 arxiv_harvester/harvester.py --metadata arxiv-metadata-oai-snapshot.json.zip --config config.json
 ```
 
-To reset an existing harvesting and starts the harvesting again from scratch:
+To reset an existing harvesting and starts the harvesting again from scratch, add the `--reset` argument:
 
 ```sh
 python3 arxiv_harvester/harvester.py --metadata arxiv-metadata-oai-snapshot.json.zip --config config.json --reset
 ```
 
-## Incremental update
+## Interrupted harvesting / Incremental update
 
-Launching the harvesting command on an interrupted harvesting will resume the harvesting automatically where it stops. 
+Launching the harvesting command on an interrupted harvesting will resume the harvesting automatically where it stopped. 
 
-If the arXiv metadata file has been updated to a newer version, launching the harvesting command on the updated metadata file will harvest only the new and updated (new latest version) articles. 
+If the arXiv metadata file has been updated to a newer version (downloaded from [https://www.kaggle.com/Cornell-University/arxiv](https://www.kaggle.com/Cornell-University/arxiv) or generated with [arxiv-public-dataset OAI harvester](https://github.com/mattbierbaum/arxiv-public-datasets#article-metadata), launching the harvesting command on the updated metadata file will harvest only the new and updated (new latest version) articles. 
 
 ## Resource file organization 
 
-The organization of harvested files permits a direct access based on the arxiv identifier. More particularly, the Open Access link given for an arXiv resource by [Unpaywall](https://unpaywall.org/) is enough to create a direct access path. It also avoids storing too many files in the same directory for performance reasons. 
+The organization of harvested files permits a direct access to the PDF based on the arxiv identifier. More particularly, the Open Access link given for an arXiv resource by [Unpaywall](https://unpaywall.org/) is enough to create a direct access path. It also avoids storing too many files in the same directory for performance reasons. 
 
 The stored PDF is always the most recent version. There is no need to know what is the exact latest version (an information that we don't have with the Unpaywall arXiv full text links for example). The local metadata file for the article gives the version number of the stored PDF. 
 
@@ -99,6 +99,52 @@ For example, to get access path from the identifiers or Unpaywall OA url:
 If the `compression` option is set to `True` in the configuration file `config.json`, all the resources have an additional `.gz` extension.
 
 `$root` in the above examples should be adapted to the storage of choice, as configured in the configuration file `config.json`. For instance with AWS S3: `https://bucket_name.s3.amazonaws.com/arXiv/1501/1501.00001/1501.00001.pdf` (if access rights are appropriate). The same applies to a SWIFT object storage based on the container name indicated in the config file. 
+
+## AWS S3 and SWIFT configuration
+
+In the configuration file `config.json`, the configuration for a S3 storage uses the following parameters:
+
+```json
+{
+    "aws_access_key_id": "",
+    "aws_secret_access_key": "",
+    "bucket_name": "",
+    "region": ""
+}
+```
+
+If you are not using a S3 storage, remove these keys or leave these values empty. 
+
+The configuration for a SWIFT object storage uses the following parameters:
+
+```json
+{
+    "swift": {},
+    "swift_container": ""
+}
+```
+
+If you are not using a SWIFT storage, remove these keys or leave these above values empty.
+
+The `"swift"` key will contain the account and authentication information, typically via Keystone, something like this: 
+
+```json
+{
+    "swift": {
+        "auth_version": "3",
+        "auth_url": "https://auth......./v3",
+        "os_username": "user-007",
+        "os_password": "1234",
+        "os_user_domain_name": "Default",
+        "os_project_domain_name": "Default",
+        "os_project_name": "myProjectName",
+        "os_project_id": "myProjectID",
+        "os_region_name": "NorthPole",
+        "os_auth_url": "https://auth......./v3"
+    },
+    "swift_container": "my_arxiv_harvesting"
+}
+```
 
 ## Limitations
 

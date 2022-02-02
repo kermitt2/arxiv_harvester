@@ -124,16 +124,19 @@ class ArXivHarvester(object):
 
             if destination_pdf is None:
                 # if not found, look for a ps file
-                ps_location = gcs_base + collection + '/ps/' + prefix + "/" + full_number + latest_version + ".ps"
-                destination_ps = os.path.join(self.config["data_path"], full_number + ".ps")
+                ps_location = gcs_base + collection + '/ps/' + prefix + "/" + full_number + latest_version + ".ps.gz"
+                destination_ps = os.path.join(self.config["data_path"], full_number + ".ps.gz")
                 destination_ps = self.download_file(ps_location, destination_ps, compression=False)
 
                 if destination_ps is None:
                     # if still not found, they are 44 articles in html only 
                     print("Full text article not found for", arxiv_id, "it might be available in html only")
                 else:
-                    # for convenience, convert .ps into PDF
+                    # for convenience, convert .ps.gz into PDF
                     destination_pdf = os.path.join(self.config["data_path"], arxiv_id + ".pdf")
+                    # first gunzip the ps file
+                    subprocess.check_call(['gunzip', '-f', destination_ps])
+                    destination_ps = destination_ps.replace(".ps.gz", ".ps")
                     subprocess.check_call(['ps2pdf', destination_ps, destination_pdf])
                     # clean ps file
                     try:
