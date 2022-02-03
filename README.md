@@ -14,7 +14,7 @@ To save storage space, only the most recent available version of the PDF for an 
 
 Resuming interrupted and incremental update are automatically supported. 
 
-In case an articles is only available only in postcript, it will be converted into PDF too - but it should not happen afaik. 
+In case an article is only available in postcript, it will be converted into PDF too - but it is extremely rare (and usually when it happens the conversion fails because the PostSript is corrupted...). 
 
 ## Install 
 
@@ -159,6 +159,8 @@ The `"swift"` key will contain the account and authentication information, typic
 ## Limitations
 
 Source files (LaTeX sources) are not available via the [Kaggle dataset](https://www.kaggle.com/Cornell-University/arxiv/discussion/185299) and thus via this modest harvester. The LaTeX source files are available via [AWS S3 Bulk Source File Access](https://arxiv.org/help/bulk_data_s3#bulk-source-file-access).
+
+There are 44 articles only available in HTML format. These articles will not be harvested. 
 
 ## Acknowledgements
 
