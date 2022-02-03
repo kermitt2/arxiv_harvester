@@ -469,7 +469,7 @@ def _get_random_user_agent():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = "arXiv harvester")
     parser.add_argument("--config", default="./config.json", help="path to the config file, default is ./config.json") 
-    parser.add_argument("--reset", action="store_true", help="ignore previous processing states, clear the existing storage and re-init the harvesting process from the beginning") 
+    parser.add_argument("--reset", action="store_true", help="ignore previous processing states and re-init the harvesting process from the beginning") 
     parser.add_argument("--metadata", help="arXiv metadata json file") 
     parser.add_argument("--diagnostic", action="store_true", help="produce a summary of the harvesting") 
 

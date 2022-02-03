@@ -53,7 +53,7 @@ pip3 install -e .
 First check the configuration file:
 
 * set the parameters according to your selected storage (AWS S3, SWIFT OepnStack or local storage), see [below](https://github.com/kermitt2/arxiv_harvester#aws-s3-and-swift-configuration) for more details, 
-* the default `batch_size` for parallel download/upload is `10`, change it as you wish, 
+* the default `batch_size` for parallel download/upload is `10`, change it as you wish and dare, 
 * by default gzip `compression` of files on the target storage is selected. 
 
 ```
@@ -62,9 +62,10 @@ arXiv harvester
 optional arguments:
   -h, --help           show this help message and exit
   --config CONFIG      path to the config file, default is ./config.json
-  --reset              ignore previous processing states, clear the existing storage and re-init
-                       the harvesting process from the beginning
+  --reset              ignore previous processing states and re-init the harvesting process from
+                       the beginning
   --metadata METADATA  arXiv metadata json file
+  --diagnostic         produce a summary of the harvesting
 ```
 
 For example, to harvest articles from a metadata snapshot file:
@@ -78,6 +79,8 @@ To reset an existing harvesting and starts the harvesting again from scratch, ad
 ```sh
 python3 arxiv_harvester/harvester.py --metadata arxiv-metadata-oai-snapshot.json.zip --config config.json --reset
 ```
+
+Note that with `--reset`, no actual stored PDF file is removed - only the harvesting process is reinitialized. 
 
 ## Interrupted harvesting / Incremental update
 
