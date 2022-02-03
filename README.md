@@ -20,7 +20,7 @@ In case an article is only available in postcript, it will be converted into PDF
 
 The tool is supposed to work on a POSIX environment. External call to the following command lines are used: `gzip`, `gunzip` and `ps2pdf`.
 
-First, download the full arXiv metadata JSON file available at [https://www.kaggle.com/Cornell-University/arxiv](https://www.kaggle.com/Cornell-University/arxiv) (1TB compressed). It's actually a JSONL file (one JSON document per line), currently named `arxiv-metadata-oai-snapshot.json.zip`. You can also generate yourself this file with [arxiv-public-dataset OAI harvester](https://github.com/mattbierbaum/arxiv-public-datasets#article-metadata) using the arXiv OAI-PMH service.
+First, download the full arXiv metadata JSON file available at [https://www.kaggle.com/Cornell-University/arxiv](https://www.kaggle.com/Cornell-University/arxiv) (1GB compressed). It's actually a JSONL file (one JSON document per line), currently named `arxiv-metadata-oai-snapshot.json.zip`. You can also generate yourself this file with [arxiv-public-dataset OAI harvester](https://github.com/mattbierbaum/arxiv-public-datasets#article-metadata) using the arXiv OAI-PMH service.
 
 Get this github repo:
 
