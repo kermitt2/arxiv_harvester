@@ -1,4 +1,4 @@
-# Poor man simple harvester for arXiv resources
+# Poor man's simple harvester for arXiv resources
 
 This modest Python script takes advantage of [arXiv resources hosted by Kaggle](https://www.kaggle.com/Cornell-University/arxiv) to harvest arXiv metadata and PDF, without using the AWS requester paid buckets. 
 
@@ -83,7 +83,7 @@ python3 arxiv_harvester/harvester.py --metadata arxiv-metadata-oai-snapshot.json
 
 Launching the harvesting command on an interrupted harvesting will resume the harvesting automatically where it stopped. 
 
-If the arXiv metadata file has been updated to a newer version (downloaded from [https://www.kaggle.com/Cornell-University/arxiv](https://www.kaggle.com/Cornell-University/arxiv) or generated with [arxiv-public-dataset OAI harvester](https://github.com/mattbierbaum/arxiv-public-datasets#article-metadata), launching the harvesting command on the updated metadata file will harvest only the new and updated (new latest version) articles. 
+If the arXiv metadata file has been updated to a newer version (downloaded from [https://www.kaggle.com/Cornell-University/arxiv](https://www.kaggle.com/Cornell-University/arxiv) or generated with [arxiv-public-dataset OAI harvester](https://github.com/mattbierbaum/arxiv-public-datasets#article-metadata)), launching the harvesting command on the updated metadata file will harvest only the new and updated articles (new most recent PDF version). 
 
 ## Resource file organization 
 
