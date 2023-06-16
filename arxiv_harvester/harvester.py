@@ -14,10 +14,10 @@ from tqdm import tqdm
 from zipfile import ZipFile
 
 # support for S3
-import S3
+import arxiv_harvester.S3 as S3
 
 # support for SWIFT object storage
-import swift
+import arxiv_harvester.swift as swift
 
 #from google.cloud import storage
 import urllib3
@@ -35,6 +35,7 @@ gcs_base = "https://storage.googleapis.com/arxiv-dataset/arxiv/"
 
 import pickle
 import lmdb
+from huggingface_hub import HfApi
 
 # init LMDB
 map_size = 200 * 1024 * 1024 * 1024 
@@ -53,6 +54,11 @@ class ArXivHarvester(object):
         self.swift = None
         if "swift" in self.config and len(self.config["swift"])>0 and "swift_container" in self.config and len(self.config["swift_container"])>0:
             self.swift = swift.Swift(self.config)
+
+        self.hf = None
+        if "hf_repo" in self.config and len(self.config["hf_repo"].strip())>0:
+            self.hf = HfApi()
+            self.hf_token = None
 
     def _init_lmdb(self):
         # create the data path if it does not exist 
@@ -289,6 +295,16 @@ class ArXivHarvester(object):
                     self.swift.upload_file_to_swift(source, dest_path)
             except:
                 logging.error("Error writing on SWIFT object storage")
+
+        elif self.hf is not None:
+            # to HuggingFace dataset, no bulk upload afaik
+            try:
+                if os.path.isfile(source):
+                    dest_path = os.path.join(collection, prefix, full_number)
+                    self.upload_file_to_hf(source, dest_path)
+            except:
+                logging.error("Error writing on HuggingFace dataset storage")
+
         else:
             # save under local storate indicated by data_path in the config json
             try:
@@ -361,6 +377,79 @@ class ArXivHarvester(object):
 
         # re-init the environments
         self._init_lmdb()
+
+    def upload_file_to_hf(self, file_path, dest_path=None):
+        """
+        Upload the given file to HuggingFace dataset
+        """
+        MAX_ATTEMPTS = 20
+        SLEEP_TIME_SECONDS = 30
+
+        attempt = 0
+        while attempt < MAX_ATTEMPTS:
+            try:
+                self._upload_file_to_hf(the_file, dest_path)
+                attempt = MAX_ATTEMPTS
+            except Exception as e:
+                attempt += 1
+                print("Failed to load file", the_file, str(e))
+                if attempt < MAX_ATTEMPTS:
+                    print("New attempt...")
+                    time.sleep(SLEEP_TIME_SECONDS)
+                else:
+                    print(str(MAX_ATTEMPTS), "failed attempts, move to the next resource file...")
+
+    def _upload_file(self, file_path, dest_path=None):
+        # note POSIX only below
+        file_name = os.path.basename(file_path)
+        token = self._get_hf_token()
+        repo_id = None
+        
+        if self.config != None:
+            if "hf_repo_id" in self.config:
+                if self.config["hf_repo_id"] != None and len(self.config["hf_repo_id"]) > 1:
+                    repo_id = self.config["hf_repo_id"]
+
+        if repo_id == None:
+            repo_id = "scilons/test_dataset"
+
+        if token == None:
+            self.hf.upload_file(
+                path_or_fileobj=file_path,
+                path_in_repo=dest_path,
+                repo_id=repo_id,
+                repo_type="dataset",
+            )
+        else: 
+            api.upload_file(
+                path_or_fileobj=file_path,
+                path_in_repo=dest_path,
+                repo_id=repo_id,
+                repo_type="dataset",
+                token=token
+            )
+
+    def _get_hf_token(self):
+
+        if self.hf_token != None:
+            return self.hf_token
+
+        the_token = None 
+
+        # check config
+        if self.config != None:
+            if "HUGGINGFACE_TOKEN" in self.config:
+                if self.config["HUGGINGFACE_TOKEN"] != None and len(self.config["HUGGINGFACE_TOKEN"]) > 1:
+                    the_token = self.config["HUGGINGFACE_TOKEN"]
+
+        # check environment variable
+        if the_token == None:
+            the_token = os.getenv('HUGGINGFACE_TOKEN')
+
+        if the_token != None:
+            self.hf_token = the_token
+
+        return the_token
 
 def _get_json_file_reader(filename, mode):
     file_in = None

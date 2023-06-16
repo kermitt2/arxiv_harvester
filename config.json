@@ -7,5 +7,7 @@
     "bucket_name": "",
     "region": "",
     "swift": {},
-    "swift_container": ""
+    "swift_container": "",
+    "hf_repo_id": "",
+    "HUGGINGFACE_TOKEN": ""
 }

@@ -7,6 +7,7 @@ my_config.json
 my_config_local.json
 my_config_S3.json
 my_config_swift.json
+my_config_hf.json
 my_config.yaml
 software_kb.egg-info/
 harvester.log

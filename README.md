@@ -6,9 +6,13 @@ The harvester performs the following tasks:
 
 * parse the full JSON arXiv metadata file available at Kaggle
 
-* parallel download PDF located at the public access bucket `gs://arxiv-dataset` and store them (also in parallel) on a cloud storage, AWS S3 and Swift OpenStack supported, or on the local file system
+* parallel download PDF located at the public access bucket `gs://arxiv-dataset` and store them (also in parallel) on a cloud storage, AWS S3 and Swift OpenStack supported, or on the local file system, or as HuggingFace dataset
 
 * store the metadata of the uploaded article along with the PDF in JSON format
+
+* by default compress everything with gzip
+
+* the files are organized based on their arXiv identifiers (PDF with JSON metadata files), so that direct access to one resource based on its arXiv identifier is straightfoward
 
 To save storage space, only the most recent available version of the PDF for an article is harvested, not every available versions. 
 
@@ -39,20 +43,20 @@ source env/bin/activate
 Install the dependencies:
 
 ```sh
-pip3 install -r requirements.txt
+python3 -m pip install -r requirements.txt
 ```
 
 Finally install the project in editable state:
 
 ```sh
-pip3 install -e .
+python3 -m pip install -e .
 ```
 
 ## Usage 
 
 First check the configuration file:
 
-* set the parameters according to your selected storage (AWS S3, SWIFT OepnStack or local storage), see [below](https://github.com/kermitt2/arxiv_harvester#aws-s3-and-swift-configuration) for more details, 
+* set the parameters according to your selected storage (AWS S3, SWIFT OpenStack or local storage), see [below](https://github.com/kermitt2/arxiv_harvester#cloud-storage) for more details, 
 * the default `batch_size` for parallel download/upload is `10`, change it as you wish and dare, 
 * by default gzip `compression` of files on the target storage is selected. 
 
@@ -71,13 +75,13 @@ optional arguments:
 For example, to harvest articles from a metadata snapshot file:
 
 ```sh
-python3 arxiv_harvester/harvester.py --metadata arxiv-metadata-oai-snapshot.json.zip --config config.json
+python3 -m arxiv_harvester.harvester --metadata arxiv-metadata-oai-snapshot.json.zip --config config.json
 ```
 
 To reset an existing harvesting and starts the harvesting again from scratch, add the `--reset` argument:
 
 ```sh
-python3 arxiv_harvester/harvester.py --metadata arxiv-metadata-oai-snapshot.json.zip --config config.json --reset
+python3 -m arxiv_harvester.harvester --metadata arxiv-metadata-oai-snapshot.json.zip --config config.json --reset
 ```
 
 Note that with `--reset`, no actual stored PDF file is removed - only the harvesting process is reinitialized. 
@@ -111,7 +115,13 @@ If the `compression` option is set to `True` in the configuration file `config.j
 
 `$root` in the above examples should be adapted to the storage of choice, as configured in the configuration file `config.json`. For instance with AWS S3: `https://bucket_name.s3.amazonaws.com/arXiv/1501/1501.00001/1501.00001.pdf` (if access rights are appropriate). The same applies to a SWIFT object storage based on the container name indicated in the config file. 
 
-## AWS S3 and SWIFT configuration
+## Cloud storage
+
+The default storage is local file system storage, with the data path as indicated in the config file (`data_path` field). 
+
+It is possible to storage on the cloud by setting one cloud storage (and only one!). 
+
+### AWS S3 configuration
 
 For a local storage, just indicate the path where to store the PDF with the parameter `data_path` in the configuration file `config.json`.
 
@@ -137,6 +147,8 @@ The configuration for a SWIFT object storage uses the following parameters:
 }
 ```
 
+### OpenStack SWIFT configuration
+
 If you are not using a SWIFT storage, remove these keys or leave these above values empty.
 
 The `"swift"` key will contain the account and authentication information, typically via Keystone, something like this: 
@@ -156,6 +168,17 @@ The `"swift"` key will contain the account and authentication information, typic
         "os_auth_url": "https://auth......./v3"
     },
     "swift_container": "my_arxiv_harvesting"
+}
+```
+
+### HuggingFace dataset
+
+This is currently working as of June 2023, but the generous HuggingFace data space for free might change in the future. The repo identifier of the HuggingFace dataset need to be specified in the `config.json` file (`hf_repo_id`). The **secret** HuggingFace access token can be specified as well in the config file, or as environment variable (`HUGGINGFACE_TOKEN`), or it is also possible to first login with the HuggingFace CLI before running the script. 
+
+```json
+{
+    "hf_repo_id": "",
+    "HUGGINGFACE_TOKEN": ""
 }
 ```
 
