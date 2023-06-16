@@ -56,7 +56,7 @@ class ArXivHarvester(object):
             self.swift = swift.Swift(self.config)
 
         self.hf = None
-        if "hf_repo" in self.config and len(self.config["hf_repo"].strip())>0:
+        if "hf_repo_id" in self.config and len(self.config["hf_repo_id"].strip())>0:
             self.hf = HfApi()
             self.hf_token = None
 
@@ -388,20 +388,21 @@ class ArXivHarvester(object):
         attempt = 0
         while attempt < MAX_ATTEMPTS:
             try:
-                self._upload_file_to_hf(the_file, dest_path)
+                self.upload_file(file_path, dest_path=dest_path)
                 attempt = MAX_ATTEMPTS
             except Exception as e:
                 attempt += 1
-                print("Failed to load file", the_file, str(e))
+                print("Failed to upload file", file_path, str(e))
                 if attempt < MAX_ATTEMPTS:
                     print("New attempt...")
                     time.sleep(SLEEP_TIME_SECONDS)
                 else:
                     print(str(MAX_ATTEMPTS), "failed attempts, move to the next resource file...")
 
-    def _upload_file(self, file_path, dest_path=None):
+    def upload_file(self, file_path, dest_path=None):
         # note POSIX only below
         file_name = os.path.basename(file_path)
+
         token = self._get_hf_token()
         repo_id = None
         
@@ -413,6 +414,13 @@ class ArXivHarvester(object):
         if repo_id == None:
             repo_id = "scilons/test_dataset"
 
+        dest_path = os.path.join(dest_path, file_name)
+
+        print("repo_id:", repo_id)
+        print("token", token)
+        print("file_path:", file_path)
+        print("dest_path:", dest_path)
+
         if token == None:
             self.hf.upload_file(
                 path_or_fileobj=file_path,
@@ -421,7 +429,7 @@ class ArXivHarvester(object):
                 repo_type="dataset",
             )
         else: 
-            api.upload_file(
+            self.hf.upload_file(
                 path_or_fileobj=file_path,
                 path_in_repo=dest_path,
                 repo_id=repo_id,
@@ -430,7 +438,6 @@ class ArXivHarvester(object):
             )
 
     def _get_hf_token(self):
-
         if self.hf_token != None:
             return self.hf_token
 
