@@ -390,7 +390,7 @@ class ArXivHarvester(object):
             try:
                 self.upload_file(file_path, dest_path=dest_path)
                 attempt = MAX_ATTEMPTS
-                print("upload success")
+                print("upload success", file_path)
             except Exception as e:
                 attempt += 1
                 print("Failed to upload file", file_path, str(e))
@@ -417,10 +417,10 @@ class ArXivHarvester(object):
 
         dest_path = os.path.join(dest_path, file_name)
 
-        print("repo_id:", repo_id)
-        print("token", token)
-        print("file_path:", file_path)
-        print("dest_path:", dest_path)
+        #print("repo_id:", repo_id)
+        #print("token", token)
+        #print("file_path:", file_path)
+        #print("dest_path:", dest_path)
 
         if token == None:
             self.hf.upload_file(
