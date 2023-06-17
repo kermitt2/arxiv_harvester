@@ -481,8 +481,7 @@ def _get_versions(json_entry):
     versions = []
     if "versions" in json_entry:
         for version in json_entry["versions"]:
-            # time indicated by "created" attribute
-            versions.insert(0, version["version"])
+            versions.insert(0, version)
 
     if len(versions) == 0:
         # default value
