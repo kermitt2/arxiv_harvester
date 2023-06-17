@@ -390,6 +390,7 @@ class ArXivHarvester(object):
             try:
                 self.upload_file(file_path, dest_path=dest_path)
                 attempt = MAX_ATTEMPTS
+                print("upload success")
             except Exception as e:
                 attempt += 1
                 print("Failed to upload file", file_path, str(e))
