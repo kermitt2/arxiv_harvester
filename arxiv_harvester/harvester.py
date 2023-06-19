@@ -19,7 +19,7 @@ import arxiv_harvester.S3 as S3
 # support for SWIFT object storage
 import arxiv_harvester.swift as swift
 
-#from google.cloud import storage
+# for accessing google cloud import storage
 import urllib3
 
 # logging
@@ -417,11 +417,6 @@ class ArXivHarvester(object):
 
         dest_path = os.path.join(dest_path, file_name)
 
-        #print("repo_id:", repo_id)
-        #print("token", token)
-        #print("file_path:", file_path)
-        #print("dest_path:", dest_path)
-
         if token == None:
             self.hf.upload_file(
                 path_or_fileobj=file_path,
@@ -503,7 +498,7 @@ def _generate_storage_components(identifier):
 
     return: collection, prefix, number 
     e.g. arxiv 1501 00001
-
+    e.g. math 0309 136
     '''
 
     if identifier is None or len(identifier) == 0:

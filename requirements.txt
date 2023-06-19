@@ -1,4 +1,4 @@
-boto3
+boto3==1.26.155
 requests
 tqdm==4.65.0
 python-swiftclient==3.12.0
