@@ -282,7 +282,7 @@ class ArXivHarvester(object):
         if self.s3 is not None:
             try:
                 if os.path.isfile(source):
-                    dest_path = os.path.join(collection, prefix, full_number, file_name)
+                    dest_path = os.path.join(collection, prefix, full_number)
                     self.s3.upload_file_to_s3(source, dest_path, storage_class='ONEZONE_IA')
             except:
                 logging.error("Error writing on S3 bucket")
