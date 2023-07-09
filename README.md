@@ -182,9 +182,17 @@ This is currently working as of June 2023, but the generous HuggingFace data spa
 }
 ```
 
-## Limitations
+## Adding LaTeX sources
 
-Source files (LaTeX sources) are not available via the [Kaggle dataset](https://www.kaggle.com/Cornell-University/arxiv/discussion/185299) and thus via this modest harvester. The LaTeX source files are available via [AWS S3 Bulk Source File Access](https://arxiv.org/help/bulk_data_s3#bulk-source-file-access).
+Source files (LaTeX sources) are not available via the [Kaggle dataset](https://www.kaggle.com/Cornell-University/arxiv/discussion/185299) and thus not directly via this modest harvester. However, the LaTeX source files are available via [AWS S3 Bulk Source File Access](https://arxiv.org/help/bulk_data_s3#bulk-source-file-access). Assuming the source file are available on a S3 bucket specified in the configuration file `config.json`, adding the source file can be done as follow: 
+
+```
+python3 -m arxiv_harvester.harvester_sources --config config.json
+```
+
+LaTeX source archives will be downloaded one by one and re-organize at publication-level. LaTeX source files as a zip archive are added in the corresponding arXiv item directory, e.g.: `$root/quant-ph/0602/0602109/0602109.zip`.
+
+## Limitation
 
 There are 44 articles only available in HTML format. These articles will not be harvested. 
 

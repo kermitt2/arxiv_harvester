@@ -9,5 +9,11 @@
     "swift": {},
     "swift_container": "",
     "hf_repo_id": "",
-    "HUGGINGFACE_TOKEN": ""
+    "HUGGINGFACE_TOKEN": "",
+    "arxiv-source": {
+        "aws_access_key_id": "",
+        "aws_secret_access_key": "",
+        "bucket_name": "",
+        "region": ""
+    }
 }

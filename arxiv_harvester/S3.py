@@ -53,8 +53,8 @@ class S3(object):
             full_path = file_name
         try:
             s3_client.upload_file(file_path, self.bucket_name, full_path, ExtraArgs={"Metadata": {"StorageClass": storage_class}})
-        except:
-            logging.error('Could not upload file ' + file_path)    
+        except Exception as e: 
+            logging.exception('Could not upload file ' + file_path)    
 
     def upload_object(self, body, s3_key, storage_class='STANDARD_IA'):
         """
@@ -71,16 +71,13 @@ class S3(object):
         """
         s3_client = self.conn
         file_name = os.path.basename(file_path)
-
-        if not os.path.exists(dest_path):
-            os.makedirs(dest_path)
         try:
             s3_client.download_file(self.bucket_name, file_path, dest_path)
-        except:
-            logging.error('Could not download file: ' + file_path)
+        except Exception as e: 
+            logging.exception('Could not download file: ' + file_path)
             return None
         
-        return os.path.join(dest_path, filename)
+        return dest_path
 
     def get_s3_list(self, dir_name):
         """
