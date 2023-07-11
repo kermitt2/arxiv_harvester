@@ -149,6 +149,11 @@ class ArXivSourceHarvester(object):
             # update lmdb to keep track of the process
             with self.env_source.begin(write=True) as txn:
                 txn.put(file.encode(encoding='UTF-8'), str(nb_files).encode(encoding='UTF-8'))
+
+            # delete the large locally downloaded arxiv
+            if dest_path != None and os.path.isfile(dest_path):
+                os.remove(dest_path)
+
             pbar.update(1)
             #break
         pbar.close()
