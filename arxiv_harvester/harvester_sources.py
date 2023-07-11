@@ -100,7 +100,7 @@ class ArXivSourceHarvester(object):
         for file in list_files:
             # download the archive file, these are tar files
             dest_path = os.path.join(self.config["data_path"], file)
-            #dest_path = self.s3_source.download_file(file, dest_path)
+            dest_path = self.s3_source.download_file(file, dest_path)
             #print("downloaded", dest_path)
             if dest_path == None:
                 logging.error("S3 download failed for " + file)
