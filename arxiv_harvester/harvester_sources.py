@@ -87,12 +87,33 @@ class ArXivSourceHarvester(object):
         envFilePath = os.path.join(self.config["data_path"], 'sources')
         self.env_source = lmdb.open(envFilePath, map_size=map_size)
 
-    def harvest_sources(self):
+    def harvest_sources(self, file_list=None):
         # we download archive one after the other from the S3 bucket
         # we extract the resources of the current archive, and move the resources according to the 
         # arxiv identifier at the right place
         # when done the archive is deleted or stored, and we download the next one
-        list_files = self.get_list_source_files()
+
+        list_files = []
+
+        if file_list == None or not os.path.isfile(file_list):
+            if os.path.isfile(os.path.join(self.config["data_path"], "list_source_files.txt")):
+                with open(os.path.join(self.config["data_path"], "list_source_files.txt"), "r") as the_file:
+                    lines = the_file.readlines()
+                    # Strips the newline character
+                    for line in lines:
+                        list_files.append(line.strip())
+            else:
+                list_files = self.get_list_source_files()
+                with open(os.path.join(self.config["data_path"], "list_source_files.txt"), "w") as the_file:
+                    for list_file in list_files:
+                        the_file.write(list_file)
+                        the_file.write("\n")
+        else:
+            with open(file_list, "r") as the_file:
+                lines = the_file.readlines()
+                # Strips the newline character
+                for line in lines:
+                    list_files.append(line.strip())
 
         print("Number of source archive files:", str(len(list_files)))
 
@@ -147,13 +168,13 @@ class ArXivSourceHarvester(object):
                                 else:
                                     os.remove(extracted_path)
                         nb_files += 1
-            # update lmdb to keep track of the process
-            with self.env_source.begin(write=True) as txn:
-                txn.put(file.encode(encoding='UTF-8'), str(nb_files).encode(encoding='UTF-8'))
+                # update lmdb to keep track of the process
+                with self.env_source.begin(write=True) as txn:
+                    txn.put(file.encode(encoding='UTF-8'), str(nb_files).encode(encoding='UTF-8'))
 
-            # delete the large locally downloaded arxiv
-            if dest_path != None and os.path.isfile(dest_path):
-                os.remove(dest_path)
+                # delete the large locally downloaded arxiv
+                if dest_path != None and os.path.isfile(dest_path):
+                    os.remove(dest_path)
 
             pbar.update(1)
             #break
@@ -301,10 +322,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = "arXiv source harvester (e.g. latex, bibtex, etc. files)")
     parser.add_argument("--config", default="./config.json", help="path to the config file, default is ./config.json") 
     parser.add_argument("--reset", action="store_true", help="ignore previous processing states and re-init the harvesting process from the beginning") 
+    parser.add_argument("--file-list", default=None, help="list of arXiv source archive files to process, default is to process all available on arxiv S3") 
 
     args = parser.parse_args()
 
     config_path = args.config
+    file_list = args.file_list
     reset = args.reset
 
     config = _load_config(config_path)
@@ -319,7 +342,7 @@ if __name__ == "__main__":
 
     start_time = time.time()
 
-    harvester.harvest_sources()
+    harvester.harvest_sources(file_list=file_list)
 
     runtime = round(time.time() - start_time, 3)
     print("runtime: %s seconds " % (runtime))
