@@ -42,7 +42,7 @@ logging.getLogger("urllib3").setLevel(logging.ERROR)
 logging.getLogger("keystoneclient").setLevel(logging.ERROR)
 logging.getLogger("swiftclient").setLevel(logging.ERROR)
 
-from arxiv_harvester.harvester import _load_config
+from arxiv_harvester.harvester import _load_config, _generate_storage_components
 
 import pickle
 import lmdb
@@ -58,7 +58,7 @@ class ArXivSourceHarvester(object):
     def __init__(self, config):
         self.config = config
 
-        self._init_lmdbs()
+        self._init_lmdb()
 
         self.s3 = None
         if "bucket_name" in self.config and len(self.config["bucket_name"].strip()) > 0:
@@ -73,7 +73,7 @@ class ArXivSourceHarvester(object):
             if "bucket_name" in self.config["arxiv-source"] and len(self.config["arxiv-source"]["bucket_name"].strip()) > 0:
                 self.s3_source = S3.S3(self.config["arxiv-source"])
 
-    def _init_lmdbs(self):
+    def _init_lmdb(self):
         # create the data path if it does not exist 
         if not os.path.isdir(self.config["data_path"]):
             try:  
@@ -96,39 +96,47 @@ class ArXivSourceHarvester(object):
 
         print("Number of source archive files:", str(len(list_files)))
 
+        pbar = tqdm(total=len(list_files))
         for file in list_files:
             # download the archive file, these are tar files
             dest_path = os.path.join(self.config["data_path"], file)
             #dest_path = self.s3_source.download_file(file, dest_path)
-            print("downloaded", dest_path)
+            #print("downloaded", dest_path)
             if dest_path == None:
                 logging.error("S3 download failed for " + file)
             else:
+                # already processed? 
+                with self.env_source.begin() as txn:
+                    local_object = txn.get(file.encode(encoding='UTF-8'))
+                    if local_object != None:
+                        continue
+
                 with tarfile.open(dest_path) as tar:
-                    for member in tar.getmembers():
+                    nb_files = 0
+
+                    for member in tqdm(tar.getmembers(), total=len(tar.getmembers())):
                         # get gzip files and ignore PDF files, the gzip files are actually tar gzip files with the sources inside
                         if not member.name.endswith(".gz"):
                             continue
                         identifier = os.path.basename(member.name)
                         identifier = identifier.replace(".gz", "")
-                        print("identifier:", identifier)
+                        
+                        # we have to put the identifier into a correct format (as it is at this stage simply the file name)
+                        #print("identifier:", identifier)
+                        
                         extraction_path = self.config["data_path"]
                         try:
                             tar.extract(member=member, path=extraction_path)
                             extracted_path = os.path.join(extraction_path, member.name)
                             local_zip_file = self.harvest_source(extracted_path, identifier)
+                            #print(local_zip_file)
 
                             # upload zip file if not empty
                             if local_zip_file != None:
-                                collection, prefix, number = _generate_storage_components(arxiv_id)
-                                if collection == 'arxiv':
-                                    full_number = prefix+"."+number
-                                else:
-                                    full_number = prefix+number
-
-                                # temporary place to download the file
-                                zip_dest_path = os.path.join(self.config["data_path"], full_number + ".zip")
-                                self.store_file(zip_file, identifier)
+                                zip_dest_path = os.path.join(self.config["data_path"], identifier + ".zip")
+                                identifier = _format_identifier(identifier)
+                                #print("identifier (reformatted):", identifier)
+                                self.store_file(zip_dest_path, identifier)
                         finally:
                             if extracted_path != None and os.path.isfile(extracted_path):
                                 ind = member.name.find("/")
@@ -137,8 +145,13 @@ class ArXivSourceHarvester(object):
                                     shutil.rmtree(os.path.join(extraction_path, member_root))
                                 else:
                                     os.remove(extracted_path)
-            break
-                
+                        nb_files += 1
+            # update lmdb to keep track of the process
+            with self.env_source.begin(write=True) as txn:
+                txn.put(file.encode(encoding='UTF-8'), str(nb_files).encode(encoding='UTF-8'))
+            pbar.update(1)
+            #break
+        pbar.close()
 
     def harvest_source(self, tar_file, identifier):
         '''
@@ -148,10 +161,11 @@ class ArXivSourceHarvester(object):
         zip_file = os.path.join(self.config["data_path"], identifier)
         extraction_path = os.path.join(self.config["data_path"], identifier+"_tmp")
         try:
-            with tarfile.open(tar_file) as tar_file:
+            with tarfile.open(tar_file) as the_tar_file:
                 # this file is a tar file again
-                tar_file.extractall(path=extraction_path)
+                the_tar_file.extractall(path=extraction_path)
                 shutil.make_archive(zip_file, "zip", extraction_path)
+                zip_file_empty = False
         except Exception as e: 
             logging.exception('Could extract/re-archive: ' + tar_file)
         finally:
@@ -170,15 +184,38 @@ class ArXivSourceHarvester(object):
             list_files = self.s3_source.get_s3_list("")
         return list_files
 
-
     def store_file(self, source, identifier, clean=True):
-        file_name = os.path.basename(source)
+
+        if not os.path.isfile(source):
+            logging.error("no valid file to store: " + source)
+            return
+
+        #print("store_file:", source, identifier)
+        original_file_name = os.path.basename(source)
         collection, prefix, number = _generate_storage_components(identifier)
 
         if collection == 'arxiv':
             full_number = prefix+"."+number
         else:
             full_number = prefix+number
+
+        # rename source file, e.g. quant-ph0001001.zip -> 0001001.zip
+        original_source = source
+        file_name = original_file_name
+        if original_file_name[0].isdigit():
+            source = os.path.join(os.path.dirname(source), original_file_name)
+        else:
+            new_file_name = ""
+            for i in range(0, len(original_file_name)):
+                c = original_file_name[i]
+                if (c.isdigit()):
+                    new_file_name += original_file_name[i:]
+                    break
+            source = os.path.join(os.path.dirname(source), new_file_name)
+            file_name = new_file_name
+
+        if original_source != source:
+            shutil.copyfile(original_source, source)
 
         if self.s3 is not None:
             try:
@@ -210,11 +247,49 @@ class ArXivSourceHarvester(object):
         # clean stored files
         if clean:
             try:
+                if original_source != source:
+                    if os.path.isfile(original_source):
+                        os.remove(original_source)
                 if os.path.isfile(source):
                     os.remove(source)
             except IOError:
                 logging.exception("temporary file cleaning failed")   
 
+    def reset(self):
+        """
+        Remove the local lmdb keeping track of the state of advancement of the harvesting and
+        of the failed entries
+        """
+        # close environments
+        self.env_source.close()
+
+        envFilePath = os.path.join(self.config["data_path"], 'sources')
+        shutil.rmtree(envFilePath)
+
+        # re-init the environments
+        self._init_lmdb()
+
+def _format_identifier(identifier):
+    '''
+    Re-format a source file name into a usual arXiv identifier
+    '''
+
+    # 2208.00127 -> 2208.00127
+    if identifier[0].isdigit():
+        # normally nothing to do
+        return identifier
+
+    # astro-ph0001001 -> astro-ph/0001001
+    new_identifer = ""
+    for i in range(0, len(identifier)):
+        c = identifier[i]
+        if (c.isdigit()):
+            new_identifer += "/" + c
+            new_identifer += identifier[i+1:]
+            break
+        else:
+            new_identifer += c
+    return new_identifer
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = "arXiv source harvester (e.g. latex, bibtex, etc. files)")
@@ -231,7 +306,10 @@ if __name__ == "__main__":
     harvester = ArXivSourceHarvester(config=config)
 
     if reset:
-        harvester.reset()
+        if input("\nYou asked to reset the existing harvesting, this will reinitialize the harvesting from the beginning... are you sure? (y/n) ") == "y":
+            harvester.reset()
+        else:
+            print("skipping reset...")
 
     start_time = time.time()
 

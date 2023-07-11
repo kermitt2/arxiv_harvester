@@ -190,7 +190,9 @@ Source files (LaTeX sources) are not available via the [Kaggle dataset](https://
 python3 -m arxiv_harvester.harvester_sources --config config.json
 ```
 
-LaTeX source archives will be downloaded one by one and re-organize at publication-level. LaTeX source files as a zip archive are added in the corresponding arXiv item directory, e.g.: `$root/quant-ph/0602/0602109/0602109.zip`.
+The LaTeX source archive files will be downloaded one by one and re-packaged at publication-level. These document-level LaTeX source files (as a zip archives, one per document) are added in the corresponding arXiv item directory, e.g.: `$root/quant-ph/0602/0602109/0602109.zip` or `$root/arXiv/1501/1501.00001/1501.00001.zip`.
+
+Similarly as before, relaunching the command line will resume the harvesting process if interrupted. Similarly as before, using the `--reset` argument will re-initialize entirely the process, erasing possible files under the `data_path` and re-starting the process from the beginning. 
 
 ## Limitation
 

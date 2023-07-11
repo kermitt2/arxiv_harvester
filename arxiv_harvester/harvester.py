@@ -508,6 +508,8 @@ def _generate_storage_components(identifier):
     prefix =None
     number = None
 
+    print(identifier)
+
     if identifier[0].isdigit():
         # we have a post-2007 identifier
         collection = "arxiv"
@@ -576,7 +578,10 @@ if __name__ == "__main__":
     harvester = ArXivHarvester(config=config)
 
     if reset:
-        harvester.reset()
+        if input("\nYou asked to reset the existing harvesting, this will reinitialize the harvesting from the beginning... are you sure? (y/n) ") == "y":
+            harvester.reset()
+        else:
+            print("skipping reset...")
 
     start_time = time.time()
 
