@@ -508,8 +508,6 @@ def _generate_storage_components(identifier):
     prefix =None
     number = None
 
-    print(identifier)
-
     if identifier[0].isdigit():
         # we have a post-2007 identifier
         collection = "arxiv"
