@@ -114,7 +114,8 @@ class ArXivSourceHarvester(object):
                 with tarfile.open(dest_path) as tar:
                     nb_files = 0
 
-                    for member in tqdm(tar.getmembers(), total=len(tar.getmembers())):
+                    #for member in tqdm(tar.getmembers(), total=len(tar.getmembers())):
+                    for member in tar.getmembers():
                         # get gzip files and ignore PDF files, the gzip files are actually tar gzip files with the sources inside
                         if not member.name.endswith(".gz"):
                             continue
