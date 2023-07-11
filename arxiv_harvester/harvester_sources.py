@@ -98,6 +98,12 @@ class ArXivSourceHarvester(object):
 
         pbar = tqdm(total=len(list_files))
         for file in list_files:
+            # already processed? 
+            with self.env_source.begin() as txn:
+                local_object = txn.get(file.encode(encoding='UTF-8'))
+                if local_object != None:
+                    continue
+
             # download the archive file, these are tar files
             dest_path = os.path.join(self.config["data_path"], file)
             dest_path = self.s3_source.download_file(file, dest_path)
@@ -105,12 +111,6 @@ class ArXivSourceHarvester(object):
             if dest_path == None:
                 logging.error("S3 download failed for " + file)
             else:
-                # already processed? 
-                with self.env_source.begin() as txn:
-                    local_object = txn.get(file.encode(encoding='UTF-8'))
-                    if local_object != None:
-                        continue
-
                 with tarfile.open(dest_path) as tar:
                     nb_files = 0
 
