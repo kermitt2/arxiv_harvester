@@ -569,7 +569,7 @@ if __name__ == "__main__":
     metadata = args.metadata
     config_path = args.config
     reset = args.reset
-    diagnotic = args.diagnostic
+    diagnostic = args.diagnostic
 
     config = _load_config(config_path)
 
@@ -587,7 +587,7 @@ if __name__ == "__main__":
         harvester.harvest(metadata)
         harvester.diagnostic()
 
-    if diagnotic:
+    if diagnostic:
         harvester.diagnostic()
 
     runtime = round(time.time() - start_time, 3)

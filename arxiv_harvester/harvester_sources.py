@@ -93,28 +93,7 @@ class ArXivSourceHarvester(object):
         # arxiv identifier at the right place
         # when done the archive is deleted or stored, and we download the next one
 
-        list_files = []
-
-        if file_list == None or not os.path.isfile(file_list):
-            if os.path.isfile(os.path.join(self.config["data_path"], "list_source_files.txt")):
-                with open(os.path.join(self.config["data_path"], "list_source_files.txt"), "r") as the_file:
-                    lines = the_file.readlines()
-                    # Strips the newline character
-                    for line in lines:
-                        list_files.append(line.strip())
-            else:
-                list_files = self.get_list_source_files()
-                with open(os.path.join(self.config["data_path"], "list_source_files.txt"), "w") as the_file:
-                    for list_file in list_files:
-                        the_file.write(list_file)
-                        the_file.write("\n")
-        else:
-            with open(file_list, "r") as the_file:
-                lines = the_file.readlines()
-                # Strips the newline character
-                for line in lines:
-                    list_files.append(line.strip())
-
+        list_files = self.set_list_files(file_list=file_list)
         print("Number of source archive files:", str(len(list_files)))
 
         pbar = tqdm(total=len(list_files))
@@ -296,6 +275,58 @@ class ArXivSourceHarvester(object):
         # re-init the environments
         self._init_lmdb()
 
+    def set_list_files(self, file_list):
+        list_files = []
+
+        if file_list == None or not os.path.isfile(file_list):
+            if os.path.isfile(os.path.join(self.config["data_path"], "list_source_files.txt")):
+                with open(os.path.join(self.config["data_path"], "list_source_files.txt"), "r") as the_file:
+                    lines = the_file.readlines()
+                    # Strips the newline character
+                    for line in lines:
+                        list_files.append(line.strip())
+            else:
+                list_files = self.get_list_source_files()
+                with open(os.path.join(self.config["data_path"], "list_source_files.txt"), "w") as the_file:
+                    for list_file in list_files:
+                        the_file.write(list_file)
+                        the_file.write("\n")
+        else:
+            with open(file_list, "r") as the_file:
+                lines = the_file.readlines()
+                # Strips the newline character
+                for line in lines:
+                    list_files.append(line.strip())
+
+        return list_files
+
+    def diagnostic(self, file_list=None):
+        '''
+        Basic information about the state of processing (large tar archives from arXiv sources),
+        and number of individual documents covered
+        '''
+
+        list_files = self.set_list_files(file_list=file_list)
+
+        with self.env_source.begin(write=False) as txn:
+            nb_archives = txn.stat()['entries']
+            print("number of fully processed arxiv source archives:", nb_archives, "out of", str(len(list_files)), "archives")
+
+        # sum the number of individual files in each entry
+        total_files = 0
+        with self.env_source.begin(write=False) as txn:
+            cursor = txn.cursor()
+            for key, value in cursor:
+                if txn.get(key) is None:
+                    continue
+                number_string = value.decode(encoding='UTF-8')
+                number = int(number_string)
+                if number != None:
+                    total_files += number
+
+            print("number of processed individual arxiv source archives:", total_files)
+
+
 def _format_identifier(identifier):
     '''
     Re-format a source file name into a usual arXiv identifier
@@ -323,12 +354,14 @@ if __name__ == "__main__":
     parser.add_argument("--config", default="./config.json", help="path to the config file, default is ./config.json") 
     parser.add_argument("--reset", action="store_true", help="ignore previous processing states and re-init the harvesting process from the beginning") 
     parser.add_argument("--file-list", default=None, help="list of arXiv source archive files to process, default is to process all available on arxiv S3") 
+    parser.add_argument("--diagnostic", action="store_true", help="produce a summary of the source harvesting") 
 
     args = parser.parse_args()
 
     config_path = args.config
     file_list = args.file_list
     reset = args.reset
+    diagnostic = args.diagnostic
 
     config = _load_config(config_path)
 
@@ -342,7 +375,11 @@ if __name__ == "__main__":
 
     start_time = time.time()
 
-    harvester.harvest_sources(file_list=file_list)
+    if diagnostic:
+        harvester.diagnostic()
+    else:
+        harvester.harvest_sources(file_list=file_list)
+        harvester.diagnostic(file_list=file_list)
 
     runtime = round(time.time() - start_time, 3)
     print("runtime: %s seconds " % (runtime))
