@@ -119,26 +119,69 @@ class ArXivSourceHarvester(object):
                         # get gzip files and ignore PDF files, the gzip files are actually tar gzip files with the sources inside
                         if not member.name.endswith(".gz"):
                             continue
+                        # we have to put the identifier into a correct format (as it is at this stage simply the file name)
                         identifier = os.path.basename(member.name)
                         identifier = identifier.replace(".gz", "")
-                        
-                        # we have to put the identifier into a correct format (as it is at this stage simply the file name)
                         #print("identifier:", identifier)
                         
                         extraction_path = self.config["data_path"]
+                        extracted_path = None
                         try:
                             tar.extract(member=member, path=extraction_path)
                             extracted_path = os.path.join(extraction_path, member.name)
-                            local_zip_file = self.harvest_source(extracted_path, identifier)
-                            #print(local_zip_file)
-
-                            # upload zip file if not empty
-                            if local_zip_file != None:
-                                zip_dest_path = os.path.join(self.config["data_path"], identifier + ".zip")
-                                identifier = _format_identifier(identifier)
-                                #print("identifier (reformatted):", identifier)
-                                self.store_file(zip_dest_path, identifier)
                         finally:
+                            # withdrawn papers are not tar files (just gzip) and starts with "%auto-ignore"
+                            # single tex file article are not tar files (just gzip), they normally starts with \documentclass
+                            # or \documentstyle
+                            is_auto_ignore = False
+                            is_single_latex = False
+                            try:
+                                with gzip.open(extracted_path,'rt') as f:
+                                    for line in f:
+                                        line = line.strip()
+                                        if line.startswith("%auto-ignore"):
+                                            is_auto_ignore = True
+                                        elif line.startswith("\\document"):
+                                            is_single_latex = True
+                                        break
+                            except:
+                                logging.error("Error opening extracted file: " + extracted_path)
+
+                            if is_auto_ignore:
+                                # skip withdrawn file
+                                continue
+
+                            if is_single_latex:
+                                # not tar, but gzip plain latex file to be zipped
+                                extracted_path_tmp = None
+                                try:
+                                    zip_file = os.path.join(self.config["data_path"], identifier)
+                                    extracted_path_tmp = os.path.join(self.config["data_path"], identifier+"_tmp")
+                                    os.mkdir(extracted_path_tmp)
+                                    with gzip.open(extracted_path, 'rb') as f_in:
+                                        with open(os.path.join(extracted_path_tmp, identifier+".tex"), 'wb') as f_out:
+                                            shutil.copyfileobj(f_in, f_out)
+
+                                    shutil.make_archive(zip_file, "zip", extracted_path_tmp)
+                                    zip_dest_path = os.path.join(self.config["data_path"], identifier + ".zip")
+                                    identifier = _format_identifier(identifier)
+                                    self.store_file(zip_dest_path, identifier)
+                                finally:
+                                    if extracted_path_tmp != None and os.path.isdir(extracted_path_tmp):
+                                        shutil.rmtree(extracted_path_tmp)
+
+                            # otherwise we have gzip tar archive
+                            if not is_auto_ignore and not is_single_latex: 
+                                local_zip_file = self.harvest_source(extracted_path, identifier)
+                                #print(local_zip_file)
+
+                                # upload zip file if not empty
+                                if local_zip_file != None:
+                                    zip_dest_path = os.path.join(self.config["data_path"], identifier + ".zip")
+                                    identifier = _format_identifier(identifier)
+                                    #print("identifier (reformatted):", identifier)
+                                    self.store_file(zip_dest_path, identifier)
+                            
                             if extracted_path != None and os.path.isfile(extracted_path):
                                 ind = member.name.find("/")
                                 if ind != -1:
@@ -146,7 +189,9 @@ class ArXivSourceHarvester(object):
                                     shutil.rmtree(os.path.join(extraction_path, member_root))
                                 else:
                                     os.remove(extracted_path)
+
                         nb_files += 1
+
                 # update lmdb to keep track of the process
                 with self.env_source.begin(write=True) as txn:
                     txn.put(file.encode(encoding='UTF-8'), str(nb_files).encode(encoding='UTF-8'))
@@ -167,7 +212,9 @@ class ArXivSourceHarvester(object):
         zip_file = os.path.join(self.config["data_path"], identifier)
         extraction_path = os.path.join(self.config["data_path"], identifier+"_tmp")
         try:
-            with tarfile.open(tar_file) as the_tar_file:
+            # normally compression is handled transparently when opening the tar (according to tarfile documentation)
+            # but we can force "r:gz" as we are sure about the encoding
+            with tarfile.open(tar_file, "r") as the_tar_file:
                 # this file is a tar file again
                 the_tar_file.extractall(path=extraction_path)
                 shutil.make_archive(zip_file, "zip", extraction_path)
@@ -197,6 +244,7 @@ class ArXivSourceHarvester(object):
             return
 
         #print("store_file:", source, identifier)
+        
         original_file_name = os.path.basename(source)
         collection, prefix, number = _generate_storage_components(identifier)
 

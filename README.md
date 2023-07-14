@@ -1,4 +1,4 @@
-# Poor man's simple harvester for arXiv resources
+# Poor man's harvester for arXiv resources
 
 This modest Python script takes advantage of [arXiv resources hosted by Kaggle](https://www.kaggle.com/Cornell-University/arxiv) to harvest arXiv metadata and PDF, without using the AWS requester paid buckets. 
 
@@ -13,6 +13,8 @@ The harvester performs the following tasks:
 * by default compress everything with gzip
 
 * the files are organized based on their arXiv identifiers (PDF with JSON metadata files), so that direct access to one resource based on its arXiv identifier is straightfoward
+
+* optionally add source files along the PDF and JSON metadata, if archives of LaTeX source can be accessed for the not so poor users
 
 To save storage space, only the most recent available version of the PDF for an article is harvested, not every available versions. 
 
