@@ -145,12 +145,30 @@ class ArXivSourceHarvester(object):
                                             is_single_latex = True
                                         break
                             except:
-                                logging.error("Error opening extracted file: " + extracted_path)
+                                logging.debug("Error opening extracted file: " + extracted_path)
 
                             if is_auto_ignore:
                                 # skip withdrawn file
                                 continue
 
+                            # otherwise we have likely gzip tar archive
+                            if not is_auto_ignore and not is_single_latex: 
+                                try:
+                                    local_zip_file = self.harvest_source(extracted_path, identifier)
+                                    #print(local_zip_file)
+
+                                    # upload zip file if not empty
+                                    if local_zip_file != None:
+                                        zip_dest_path = os.path.join(self.config["data_path"], identifier + ".zip")
+                                        identifier = _format_identifier(identifier)
+                                        #print("identifier (reformatted):", identifier)
+                                        self.store_file(zip_dest_path, identifier)
+                                    else:
+                                        # ok it was single latex file too
+                                        is_single_latex = True
+                                except:
+                                    logging.debug("Error opening extracted file: " + extracted_path)
+                            
                             if is_single_latex:
                                 # not tar, but gzip plain latex file to be zipped
                                 extracted_path_tmp = None
@@ -170,18 +188,6 @@ class ArXivSourceHarvester(object):
                                     if extracted_path_tmp != None and os.path.isdir(extracted_path_tmp):
                                         shutil.rmtree(extracted_path_tmp)
 
-                            # otherwise we have gzip tar archive
-                            if not is_auto_ignore and not is_single_latex: 
-                                local_zip_file = self.harvest_source(extracted_path, identifier)
-                                #print(local_zip_file)
-
-                                # upload zip file if not empty
-                                if local_zip_file != None:
-                                    zip_dest_path = os.path.join(self.config["data_path"], identifier + ".zip")
-                                    identifier = _format_identifier(identifier)
-                                    #print("identifier (reformatted):", identifier)
-                                    self.store_file(zip_dest_path, identifier)
-                            
                             if extracted_path != None and os.path.isfile(extracted_path):
                                 ind = member.name.find("/")
                                 if ind != -1:
@@ -220,7 +226,7 @@ class ArXivSourceHarvester(object):
                 shutil.make_archive(zip_file, "zip", extraction_path)
                 zip_file_empty = False
         except Exception as e: 
-            logging.exception('Could extract/re-archive: ' + tar_file)
+            logging.debug('Could extract/re-archive: ' + tar_file)
         finally:
             # deleting tmp dir
             if os.path.isdir(extraction_path):
